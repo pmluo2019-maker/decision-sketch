@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>决策速写</title>
+<style>
+  :root{
+    --ink:#191c23; --ink-2:#22262f; --ink-3:#2c313c;
+    --bone:#e8e4d8; --bone-soft:#a8a496; --bone-dim:#6f6c62;
+    --paper:#efece4; --paper-2:#f7f5f0; --paper-ink:#2a2925;
+    --brass:#b8924c; --brass-soft:#caa86a;
+    --line:rgba(232,228,216,.10); --line-2:rgba(232,228,216,.16);
+    --c-G:#5688b6; --c-P1:#bd7050; --c-A:#74975c;
+    --c-I:#8478ad; --c-P2:#4ea295; --c-O:#76808f;
+    --serif:"Songti SC","STSong","Noto Serif SC","SimSun",serif;
+    --sans:"PingFang SC","Microsoft YaHei","Noto Sans SC","Hiragino Sans GB",sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{background:var(--ink);color:var(--bone);font-family:var(--sans);font-size:16px;line-height:1.6;overflow:hidden}
+  #app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;position:relative}
+
+  header{padding:14px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:9px;flex:none}
+  header h1{font-family:var(--serif);font-size:21px;font-weight:600;margin:0;letter-spacing:3px}
+  header .sub{font-size:11px;color:var(--bone-dim);letter-spacing:1px}
+
+  .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .pad{padding:18px 16px}
+
+  /* intake */
+  .lead{color:var(--bone-soft);font-size:14px;line-height:1.7;margin:2px 0 14px}
+  .lead b{color:var(--bone)}
+  textarea#blob{width:100%;min-height:200px;resize:none;background:var(--ink-2);color:var(--bone);
+    border:1px solid var(--line-2);border-radius:12px;padding:14px;font-family:var(--sans);font-size:16px;line-height:1.6;outline:none}
+  textarea#blob:focus{border-color:var(--brass)}
+  textarea#blob::placeholder{color:var(--bone-dim)}
+  .hint{font-size:12px;color:var(--bone-dim);margin:9px 2px 0;line-height:1.6}
+  .cta{width:100%;margin-top:16px;padding:14px;border:0;border-radius:12px;background:var(--brass);color:#1a1305;
+    font-family:var(--serif);font-size:16px;font-weight:600;letter-spacing:3px;cursor:pointer}
+  .cta:disabled{opacity:.5}
+  .cta.ghost{background:transparent;border:1px solid var(--line-2);color:var(--bone-soft);font-family:var(--sans);
+    font-weight:400;letter-spacing:1px;font-size:13px;padding:10px;margin-top:10px}
+
+  .loading{text-align:center;color:var(--bone-soft);font-size:14px;padding:40px 0}
+  .dots i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--bone-dim);margin:0 3px;animation:bl 1.2s infinite}
+  .dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+  @keyframes bl{0%,80%,100%{opacity:.25}40%{opacity:1}}
+  .err{background:#3a2622;border:1px solid #6b3c33;color:#f0cabf;font-size:13px;padding:12px;border-radius:10px;line-height:1.6}
+  .err button{margin-top:8px;background:#6b3c33;border:0;color:#f0cabf;padding:6px 14px;border-radius:7px;font-size:12px;cursor:pointer}
+
+  /* sketch */
+  .titlewrap{margin-bottom:8px}
+  .titlewrap label{font-size:11px;letter-spacing:2px;color:var(--bone-dim)}
+  input.title{width:100%;background:transparent;border:0;border-bottom:1px solid var(--line-2);color:var(--bone);
+    font-family:var(--serif);font-size:19px;padding:6px 0;outline:none;margin-top:2px}
+  input.title:focus{border-color:var(--brass)}
+  .prefill-note{font-size:12px;color:var(--brass-soft);margin:4px 0 16px;display:flex;align-items:center;gap:6px}
+
+  .card{background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--cc);
+    border-radius:4px 12px 12px 4px;padding:13px 14px;margin-bottom:13px}
+  .card .ch{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+  .card .glyph{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:var(--serif);
+    font-size:14px;background:var(--ink-3);border:1.5px solid var(--cc);color:var(--bone);flex:none}
+  .card .nm{font-size:14px;font-weight:600}
+  .card .el{font-size:11px;color:var(--bone-dim);letter-spacing:.5px}
+  .card .guess{margin-left:auto;font-size:10px;color:var(--brass-soft);border:1px solid var(--brass);
+    border-radius:999px;padding:1px 8px;letter-spacing:.5px}
+  .card .need{font-size:12px;color:var(--bone-dim);margin:-4px 0 11px 35px}
+
+  .row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .row:last-child{margin-bottom:0}
+  .fld{flex:1;background:var(--ink-3);border:1px solid var(--line-2);border-radius:8px;color:var(--bone);
+    padding:8px 11px;font-family:var(--sans);font-size:14.5px;outline:none}
+  .fld:focus{border-color:var(--cc)}
+  .fld::placeholder{color:var(--bone-dim)}
+  select.fld{appearance:none;background-image:none}
+  .mini{font-size:12px;color:var(--bone-dim);flex:none}
+  .ib{flex:none;width:30px;height:30px;border-radius:7px;border:1px solid var(--line-2);background:var(--ink-3);
+    color:var(--bone-soft);font-size:15px;cursor:pointer;display:grid;place-items:center}
+  .ib:active{background:var(--ink)}
+  .ib.x{color:#b87a6a}
+  .reorder{display:flex;flex-direction:column;gap:2px;flex:none}
+  .reorder button{width:26px;height:17px;border:1px solid var(--line-2);background:var(--ink-3);color:var(--bone-soft);
+    font-size:10px;cursor:pointer;border-radius:5px;padding:0;line-height:1}
+  .ord{flex:none;width:20px;text-align:center;font-family:var(--serif);color:var(--cc);font-size:15px}
+
+  .seg{display:flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden;flex:none}
+  .seg button{appearance:none;border:0;background:transparent;color:var(--bone-soft);font-family:var(--sans);
+    font-size:12px;padding:6px 11px;cursor:pointer}
+  .seg button.on.fact{background:var(--c-P2);color:#06201c}
+  .seg button.on.assume{background:#caa14d;color:#241a05}
+  .seg button.on.hit{background:var(--c-P1);color:#2a0f07}
+  .seg button.on.no{background:var(--ink-3);color:var(--bone)}
+
+  .addrow{display:flex;gap:7px;margin-top:9px}
+  .addrow input{flex:1;background:var(--ink-3);border:1px dashed var(--line-2);border-radius:8px;color:var(--bone);
+    padding:8px 11px;font-size:14px;outline:none}
+  .addrow input:focus{border-color:var(--cc);border-style:solid}
+  .addrow button{flex:none;width:38px;border:0;border-radius:8px;background:var(--ink-3);color:var(--brass-soft);
+    font-size:18px;cursor:pointer}
+  .ppl-lab{font-size:12px;color:var(--bone-soft);flex:none;width:74px}
+
+  /* memo */
+  .memo-wrap{position:absolute;inset:0;background:var(--paper);color:var(--paper-ink);overflow-y:auto;z-index:5;
+    font-family:var(--serif);-webkit-overflow-scrolling:touch}
+  .memo{padding:26px 22px 40px;max-width:480px;margin:0 auto}
+  .memo .top{text-align:center;border-bottom:2px solid var(--paper-ink);padding-bottom:14px}
+  .memo .top .k{font-size:11px;letter-spacing:5px;color:#8a857a;font-family:var(--sans)}
+  .memo .top h2{font-size:25px;margin:6px 0 2px;letter-spacing:6px;font-weight:600}
+  .memo .deci{font-size:17px;text-align:center;margin:16px 0 22px;line-height:1.6}
+  .memo .deci span{display:block;font-size:11px;letter-spacing:3px;color:#8a857a;font-family:var(--sans);margin-bottom:6px}
+  .sec{margin-bottom:19px}
+  .sec h3{font-size:15px;letter-spacing:2px;margin:0 0 9px;padding-bottom:5px;border-bottom:1px solid #d8d3c6;
+    display:flex;align-items:baseline;gap:8px}
+  .sec h3 em{font-style:normal;font-family:var(--sans);font-size:10px;letter-spacing:2px;color:#a39c8c}
+  .sec .bd{font-family:var(--sans);font-size:14.5px;line-height:1.75;color:#2f2d28}
+  .kv{margin:3px 0}.kv b{font-weight:600;color:#1f1e1a}
+  .pill2{display:inline-block;font-family:var(--sans);font-size:12px;background:#e2ddd0;border-radius:4px;
+    padding:3px 9px;margin:3px 5px 0 0;color:#4a463c}
+  .pill2.warn{background:#ecdcbe;color:#7a5a1c}
+  .alt{border-left:2px solid var(--brass);padding:2px 0 2px 11px;margin:7px 0;font-family:var(--sans);font-size:14px}
+  .seal{margin:24px auto 0;width:100px;height:100px;border:2.5px solid var(--brass);border-radius:50%;display:grid;
+    place-items:center;text-align:center;color:var(--brass);transform:rotate(-7deg);
+    box-shadow:inset 0 0 0 4px var(--paper),inset 0 0 0 5px #b8924c40}
+  .seal b{font-size:18px;letter-spacing:3px;line-height:1.25;font-weight:600}
+  .seal s{display:block;text-decoration:none;font-size:9px;letter-spacing:2px;font-family:var(--sans);margin-top:4px}
+  .memo .foot{text-align:center;font-family:var(--sans);font-size:11px;color:#9a9487;margin-top:14px;letter-spacing:1px}
+  .memo .acts{margin-top:24px;display:flex;flex-direction:column;gap:10px}
+  .memo .acts button{font-family:var(--sans);padding:12px;border-radius:10px;font-size:14px;cursor:pointer;border:0}
+  .memo .acts .pri{background:var(--paper-ink);color:var(--paper)}
+  .memo .acts .sec2{background:transparent;border:1px solid #c9c3b4;color:#5d594d}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>决策速写</h1><span class="sub">先猜后改 · GPA·IPO</span></header>
+  <div class="scroll"><div class="pad" id="main"></div></div>
+</div>
+
+<script>
+/* ── DeepSeek（OpenAI 兼容） · key 仅供本地 demo，勿公开/上线 ── */
+const DS_ENDPOINT="https://api.deepseek.com/chat/completions", DS_MODEL="deepseek-v4-pro",
+      DS_KEY="sk-9307fc5e0fdd4150946674e1ab5f2a9a";
+async function askLLM(system,user,maxTok=1500,temp=0.3){
+  const res=await fetch(DS_ENDPOINT,{method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+DS_KEY},
+    body:JSON.stringify({model:DS_MODEL,max_tokens:maxTok,temperature:temp,
+      messages:[{role:"system",content:system},{role:"user",content:user}]})});
+  if(!res.ok) throw new Error("HTTP "+res.status);
+  const data=await res.json();
+  return (data.choices?.[0]?.message?.content||"").trim();
+}
+function extractJSON(raw){
+  let s=raw.replace(/```json|```/g,"").trim();
+  const a=s.indexOf("{"),b=s.lastIndexOf("}"); if(a>=0&&b>a) s=s.slice(a,b+1);
+  return JSON.parse(s);
+}
+const $=s=>document.querySelector(s);
+const esc=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const main=$("#main");
+
+const ELS=[
+  {key:"goal",  glyph:"目",nm:"目标",el:"Goal",      cc:"var(--c-G)", need:"北极星指标 + 从多少到多少 + 多久"},
+  {key:"prio",  glyph:"舍",nm:"优先级",el:"Priority", cc:"var(--c-P1)",need:"相互竞争的目标，拖出先后（保前舍后）"},
+  {key:"alt",   glyph:"案",nm:"可选方案",el:"Alternatives",cc:"var(--c-A)",need:"至少 3 条不同的路，含「维持现状」"},
+  {key:"fact",  glyph:"实",nm:"信息",el:"Information",cc:"var(--c-I)", need:"逐条点：这是事实，还是假设？"},
+  {key:"ppl",   glyph:"人",nm:"人员",el:"People",     cc:"var(--c-P2)",need:"谁执行、谁拍板、谁可能反对"},
+  {key:"bias",  glyph:"理",nm:"认知偏误",el:"Objective",cc:"var(--c-O)",need:"逐个点：这个偏误，中了，还是没有？"},
+];
+
+const METRICS=["月留存率","次日留存","付费转化率","ARPU客单价","月活 MAU","GMV","利润","续费率","NPS","其他"];
+
+let S=null;  // 速写数据
+
+/* ── 入口：倒一段 ── */
+function screenIntake(){
+  main.innerHTML=`
+    <p class="lead">把这桩决策<b>大致说一段</b>——要决定什么、背景、你现在的想法，都行。<br>也可以直接把现成的邮件 / 会议纪要 / 聊天记录粘进来。</p>
+    <textarea id="blob" placeholder="例：我们在纠结要不要加大应用市场的投放预算。现在每月投 200 万，ROI 在掉，转化也不太好。老板想冲利润，年底要从 500 万做到 1000 万……"></textarea>
+    <div class="hint">AI 会先替你把六个决策要素各猜一版草稿，你只改错的那几处——不用从零打字。</div>
+    <button class="cta" id="go">生成决策速写 →</button>`;
+  $("#go").onclick=generate;
+}
+
+async function generate(){
+  const blob=$("#blob").value.trim();
+  if(!blob){ $("#blob").focus(); return; }
+  main.innerHTML=`<div class="loading"><div class="dots"><i></i><i></i><i></i></div><p>正在把你的话拆成六个决策要素…</p></div>`;
+  try{
+    const raw=await askLLM(PREFILL_SYS, blob, 2048, 0.3);
+    S=normalize(extractJSON(raw));
+    screenSketch();
+  }catch(e){
+    main.innerHTML=`<div class="err">没能连上 DeepSeek 或解析失败（可能是网络/CORS/key/模型名）。<br><button id="rt">重试</button></div>`;
+    $("#rt").onclick=()=>{ screenIntake(); };
+  }
+}
+
+const PREFILL_SYS=`你是决策速写助手。决策人会用一段松散的话描述他要做的决策。基于这段话，为 GPA+IPO 六要素各先猜一版草稿（猜不准就给最可能的，或留空字符串）。只输出一个 JSON 对象，不要解释、不要 markdown、不要反引号：
+{"title":"一句话决策主题","goal":{"metric":"北极星指标，如 月留存率","from":"现状值，如 40%","to":"目标值，如 45%","window":"时间窗，如 6个月"},"priorities":["相互竞争的目标，按你猜的重要性从高到低，2-4个"],"alternatives":["可选方案，3条，必须含一条「维持现状/什么都不做」"],"facts":[{"text":"决策里的一条关键论断","type":"fact 或 assumption——你判断它现在更像已知事实还是未经验证的假设"}],"people":{"executor":"实际执行的人或角色","approver":"拍板前必须先点头的人或角色","opposer":"可能暗中反对的人或角色"},"biases":[{"name":"可能影响这个决策的认知偏误，如 沉没成本/确认偏误/锚定/过度自信/从众","hit":true 或 false——你猜它是否正在影响决策人}]}
+内容用中文、简洁。字符串内若要用引号，一律用中文「」，绝不用英文双引号。facts 给 3-5 条，biases 给 3-4 个。确保 JSON 完整不被截断。`;
+
+function normalize(o){
+  o=o||{};
+  return {
+    title:o.title||"未命名决策",
+    goal:Object.assign({metric:"",from:"",to:"",window:""},o.goal||{}),
+    prio:(o.priorities||[]).filter(Boolean),
+    alt:(o.alternatives||[]).filter(Boolean),
+    fact:(o.facts||[]).map(f=>({text:f.text||"",type:f.type==="fact"?"fact":"assumption"})).filter(f=>f.text),
+    ppl:Object.assign({executor:"",approver:"",opposer:""},o.people||{}),
+    bias:(o.biases||[]).map(b=>({name:b.name||"",hit:!!b.hit})).filter(b=>b.name),
+  };
+}
+
+/* ── 速写编辑页 ── */
+function screenSketch(){
+  main.innerHTML=`
+    <div class="titlewrap"><label>决策主题</label>
+      <input class="title" id="title" value="${esc(S.title)}"></div>
+    <div class="prefill-note">✦ 以下都是 AI 预填的草稿，<b style="color:var(--bone)">改错的、补缺的即可</b></div>
+    <div id="cards"></div>
+    <button class="cta" id="assemble">校对完成 · 成稿 →</button>
+    <button class="cta ghost" id="restart">重写一段</button>`;
+  $("#title").oninput=e=>S.title=e.target.value;
+  $("#assemble").onclick=assemble;
+  $("#restart").onclick=screenIntake;
+  renderCards();
+}
+
+function cardShell(e, inner){
+  return `<div class="card" style="--cc:${e.cc}">
+    <div class="ch"><div class="glyph">${e.glyph}</div>
+      <div><div class="nm">${e.nm}</div><div class="el">${e.el}</div></div>
+      <span class="guess">AI 预填</span></div>
+    <div class="need">${e.need}</div>${inner}</div>`;
+}
+
+function renderCards(){
+  const box=$("#cards");
+  box.innerHTML = ELS.map(e=>{
+    if(e.key==="goal")  return cardShell(e, goalCtl());
+    if(e.key==="prio")  return cardShell(e, listCtl("prio","reorder","加一个相互竞争的目标"));
+    if(e.key==="alt")   return cardShell(e, listCtl("alt","del","加一条不同的路"));
+    if(e.key==="fact")  return cardShell(e, factCtl());
+    if(e.key==="ppl")   return cardShell(e, pplCtl());
+    if(e.key==="bias")  return cardShell(e, biasCtl());
+  }).join("");
+  bindCards();
+}
+
+/* G 目标 */
+function goalCtl(){
+  const g=S.goal;
+  const opts=METRICS.map(m=>`<option ${m===g.metric?"selected":""}>${m}</option>`).join("");
+  const custom = !METRICS.includes(g.metric) && g.metric;
+  return `<div class="row"><span class="mini">指标</span>
+      <select class="fld" data-g="metric">${opts}${custom?`<option selected>${esc(g.metric)}</option>`:""}</select></div>
+    <div class="row"><span class="mini">从</span><input class="fld" data-g="from" value="${esc(g.from)}" placeholder="40%">
+      <span class="mini">到</span><input class="fld" data-g="to" value="${esc(g.to)}" placeholder="45%"></div>
+    <div class="row"><span class="mini">在</span><input class="fld" data-g="window" value="${esc(g.window)}" placeholder="6个月">
+      <span class="mini">内达成</span></div>`;
+}
+
+/* 通用列表：mode='reorder'(可调序) 或 'del'(仅增删) */
+function listCtl(key, mode, ph){
+  const items=S[key];
+  const rows=items.map((t,k)=>`<div class="row">
+      ${mode==="reorder"?`<span class="ord">${k+1}</span>
+        <div class="reorder"><button data-mv="${key}|${k}|-1">▲</button><button data-mv="${key}|${k}|1">▼</button></div>`:""}
+      <input class="fld" data-edit="${key}|${k}" value="${esc(t)}">
+      <button class="ib x" data-del="${key}|${k}">✕</button></div>`).join("");
+  return rows + addRow(key, ph);
+}
+
+/* I 信息：事实 / 假设 开关 */
+function factCtl(){
+  const rows=S.fact.map((f,k)=>`<div class="row">
+      <input class="fld" data-fedit="${k}" value="${esc(f.text)}">
+      <div class="seg">
+        <button class="${f.type==="fact"?"on fact":""}" data-ft="${k}|fact">事实</button>
+        <button class="${f.type==="assumption"?"on assume":""}" data-ft="${k}|assumption">假设</button></div>
+      <button class="ib x" data-del="fact|${k}">✕</button></div>`).join("");
+  return rows + addRow("fact","加一条关键论断");
+}
+
+/* P 人员 */
+function pplCtl(){
+  const p=S.ppl;
+  const r=(lab,key,ph)=>`<div class="row"><span class="ppl-lab">${lab}</span>
+      <input class="fld" data-p="${key}" value="${esc(p[key])}" placeholder="${ph}"></div>`;
+  return r("执行人",      "executor","谁来落地？")
+       + r("拍板需点头",  "approver","拍板前谁必须先同意？")
+       + r("可能反对",    "opposer","谁可能暗中反对/阳奉阴违？");
+}
+
+/* O 偏误：中了 / 没有 */
+function biasCtl(){
+  const rows=S.bias.map((b,k)=>`<div class="row">
+      <input class="fld" data-bedit="${k}" value="${esc(b.name)}">
+      <div class="seg">
+        <button class="${b.hit?"on hit":""}" data-bt="${k}|1">中了</button>
+        <button class="${!b.hit?"on no":""}" data-bt="${k}|0">没有</button></div>
+      <button class="ib x" data-del="bias|${k}">✕</button></div>`).join("");
+  return rows + addRow("bias","加一个你担心的偏误");
+}
+
+function addRow(key, ph){
+  return `<div class="addrow"><input data-add="${key}" placeholder="${ph}">
+    <button data-addbtn="${key}">＋</button></div>`;
+}
+
+/* ── 事件绑定（每次重渲染后重绑） ── */
+function bindCards(){
+  document.querySelectorAll("[data-g]").forEach(el=>{
+    const f=el.dataset.g;
+    el.tagName==="SELECT" ? el.onchange=e=>S.goal[f]=e.target.value
+                          : el.oninput=e=>S.goal[f]=e.target.value;
+  });
+  document.querySelectorAll("[data-p]").forEach(el=>el.oninput=e=>S.ppl[el.dataset.p]=e.target.value);
+  document.querySelectorAll("[data-edit]").forEach(el=>el.oninput=e=>{
+    const [key,k]=el.dataset.edit.split("|"); S[key][+k]=e.target.value; });
+  document.querySelectorAll("[data-fedit]").forEach(el=>el.oninput=e=>S.fact[+el.dataset.fedit].text=e.target.value);
+  document.querySelectorAll("[data-bedit]").forEach(el=>el.oninput=e=>S.bias[+el.dataset.bedit].name=e.target.value);
+
+  document.querySelectorAll("[data-mv]").forEach(b=>b.onclick=()=>{
+    const [key,k,d]=b.dataset.mv.split("|"); move(key,+k,+d); });
+  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+    const [key,k]=b.dataset.del.split("|"); S[key].splice(+k,1); renderCards(); });
+  document.querySelectorAll("[data-ft]").forEach(b=>b.onclick=()=>{
+    const [k,t]=b.dataset.ft.split("|"); S.fact[+k].type=t; renderCards(); });
+  document.querySelectorAll("[data-bt]").forEach(b=>b.onclick=()=>{
+    const [k,v]=b.dataset.bt.split("|"); S.bias[+k].hit=v==="1"; renderCards(); });
+  document.querySelectorAll("[data-addbtn]").forEach(b=>b.onclick=()=>addItem(b.dataset.addbtn));
+  document.querySelectorAll("[data-add]").forEach(inp=>inp.onkeydown=e=>{ if(e.key==="Enter") addItem(inp.dataset.add); });
+}
+function move(key,k,d){ const a=S[key],j=k+d; if(j<0||j>=a.length) return; [a[k],a[j]]=[a[j],a[k]]; renderCards(); }
+function addItem(key){
+  const inp=document.querySelector(`[data-add="${key}"]`); const v=(inp.value||"").trim(); if(!v) return;
+  if(key==="fact") S.fact.push({text:v,type:"assumption"});
+  else if(key==="bias") S.bias.push({name:v,hit:true});
+  else S[key].push(v);
+  renderCards();
+}
+
+/* ── 成稿 ── */
+const ASSEMBLE_SYS=`你是决策圆桌的书记官。下面是一份决策速写（决策人已校对过的 GPA+IPO 六要素 JSON）。基于它补出三块、并输出一个 JSON，不要解释、不要 markdown、不要反引号：
+{"decision":"一句话决策主题（可在原 title 上润色得更准）","premortem":"事前验尸：假设一年后这个决策失败了，最可能的原因","recommendation":"综合建议：给决策结构与权衡提示，点出最该盯的取舍，但不替决策人拍板","feedback":{"watch":"接下来要观察的信号或指标","revisit":"何时回看复盘"}}
+中文、简洁。字符串内引号一律用中文「」，绝不用英文双引号。`;
+
+async function assemble(){
+  main.innerHTML=`<div class="loading"><div class="dots"><i></i><i></i><i></i></div><p>书记官正在补「事前验尸 / 建议」并成稿…</p></div>`;
+  try{
+    const raw=await askLLM(ASSEMBLE_SYS, JSON.stringify(S), 1200, 0.3);
+    let extra; try{ extra=extractJSON(raw); }
+    catch(e2){ const fix=await askLLM("把下面这段修复成合法完整 JSON，字符串内引号用中文「」，只输出 JSON。",raw,1200,0); extra=extractJSON(fix); }
+    renderMemo(extra);
+  }catch(e){
+    screenSketch();
+    const n=document.createElement("div"); n.className="err"; n.style.marginTop="12px";
+    n.innerHTML="成稿失败（网络/CORS/解析）。<br><button>重试</button>";
+    n.querySelector("button").onclick=assemble; $("#cards").after(n);
+  }
+}
+
+function renderMemo(x){
+  const g=S.goal;
+  const goalLine = (g.metric||g.from||g.to)
+    ? `${esc(g.metric||"目标指标")}：${esc(g.from||"?")} → ${esc(g.to||"?")}${g.window?("，"+esc(g.window)+"内"):""}` : "待补充";
+  const prio = S.prio.length ? S.prio.map((p,i)=>`<span class="pill2">${i+1}. ${esc(p)}</span>`).join("") : "待补充";
+  const alts = S.alt.length ? S.alt.map(a=>`<div class="alt">${esc(a)}</div>`).join("") : "<div class='bd'>待补充</div>";
+  const facts = S.fact.filter(f=>f.type==="fact");
+  const assumes = S.fact.filter(f=>f.type==="assumption");
+  const factPills = arr=>arr.length?arr.map(f=>`<span class="pill2 ${f.type==="assumption"?"warn":""}">${esc(f.text)}</span>`).join(""):"—";
+  const biasHit = S.bias.filter(b=>b.hit);
+  const biasPills = biasHit.length?biasHit.map(b=>`<span class="pill2 warn">${esc(b.name)}</span>`).join(""):"未点中明显偏误";
+  const p=S.ppl, fb=x.feedback||{};
+  const now=new Date(), date=`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}`;
+
+  const wrap=document.createElement("div"); wrap.className="memo-wrap";
+  wrap.innerHTML=`<div class="memo">
+    <div class="top"><div class="k">决 策 速 写</div><h2>决策备忘录</h2></div>
+    <div class="deci"><span>议题</span>${esc(x.decision||S.title)}</div>
+
+    <div class="sec"><h3>一 · 目标与取舍 <em>G · P</em></h3><div class="bd">
+      <div class="kv"><b>北极星 </b>${goalLine}</div>
+      <div class="kv" style="margin-top:5px"><b>优先级</b><br>${prio}</div></div></div>
+
+    <div class="sec"><h3>二 · 可选方案 <em>A</em></h3>${alts}</div>
+
+    <div class="sec"><h3>三 · 信息核查 <em>I</em></h3><div class="bd">
+      <div class="kv"><b>已确认事实</b><br>${factPills(facts)}</div>
+      <div class="kv" style="margin-top:7px"><b>仍是假设（待验证）</b><br>${factPills(assumes)}</div></div></div>
+
+    <div class="sec"><h3>四 · 人员与干系 <em>P</em></h3><div class="bd">
+      <div class="kv"><b>执行 </b>${esc(p.executor)||"待补充"}</div>
+      <div class="kv"><b>拍板需点头 </b>${esc(p.approver)||"待补充"}</div>
+      <div class="kv"><b>可能反对 </b>${esc(p.opposer)||"待补充"}</div></div></div>
+
+    <div class="sec"><h3>五 · 认知偏误 <em>O</em></h3><div class="bd">${biasPills}</div></div>
+
+    <div class="sec"><h3>事前验尸 <em>Pre-mortem</em></h3><div class="bd">${esc(x.premortem)||"待补充"}</div></div>
+    <div class="sec"><h3>综合建议 <em>Recommendation</em></h3><div class="bd">${esc(x.recommendation)||"待补充"}</div></div>
+    <div class="sec"><h3>复盘闭环 <em>Feedback</em></h3><div class="bd">
+      <div class="kv"><b>观察 </b>${esc(fb.watch)||"待补充"}</div>
+      <div class="kv"><b>回看 </b>${esc(fb.revisit)||"待补充"}</div></div></div>
+
+    <div class="seal"><div><b>决策<br>速写</b><s>DRAFTED</s></div></div>
+    <div class="foot">校对成稿 · ${date}</div>
+    <div class="acts">
+      <button class="sec2" id="back">← 回去改</button>
+      <button class="pri" id="again">重写一段</button>
+    </div></div>`;
+  $("#app").appendChild(wrap);
+  wrap.querySelector("#back").onclick=()=>{ wrap.remove(); screenSketch(); };
+  wrap.querySelector("#again").onclick=()=>{ wrap.remove(); screenIntake(); };
+}
+
+screenIntake();
+</script>
+</body>
+</html>
