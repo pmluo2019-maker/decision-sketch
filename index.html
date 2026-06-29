@@ -36,6 +36,27 @@
   textarea#blob:focus{border-color:var(--brass)}
   textarea#blob::placeholder{color:var(--bone-dim)}
   .hint{font-size:12px;color:var(--bone-dim);margin:9px 2px 0;line-height:1.6}
+  .voicebar{display:flex;align-items:center;gap:11px;margin-top:11px}
+  .mic{flex:none;display:inline-flex;align-items:center;gap:8px;background:var(--ink-2);border:1px solid var(--line-2);
+    color:var(--bone);border-radius:999px;padding:9px 16px;font-family:var(--sans);font-size:14px;cursor:pointer}
+  .mic .dot{width:10px;height:10px;border-radius:50%;background:var(--bone-dim);flex:none}
+  .mic:active{background:var(--ink-3)}
+  .mic.rec{border-color:#c2654a;color:#f0cabf;background:#3a2622}
+  .mic.rec .dot{background:#e0563a;animation:mp 1.1s infinite}
+  @keyframes mp{0%,100%{opacity:1;box-shadow:0 0 0 0 #e0563a55}50%{opacity:.55;box-shadow:0 0 0 6px #e0563a00}}
+  .vhint{font-size:12px;color:var(--bone-dim);line-height:1.5}
+  .vhint.warn{color:#caa14d}
+  .srcs{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+  .src{display:flex;align-items:center;gap:9px;font-size:12.5px;background:var(--ink-2);border:1px solid var(--line-2);
+    border-radius:8px;padding:7px 11px;color:var(--bone-soft)}
+  .src .ico{flex:none;width:14px;text-align:center}
+  .src .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--bone)}
+  .src .st{flex:none;font-size:11px}
+  .src.ok{border-left:2px solid var(--c-P2)}
+  .src.err{border-left:2px solid #c2654a;color:#e0b3a6}
+  .spin{width:13px;height:13px;border:2px solid var(--line-2);border-top-color:var(--brass);border-radius:50%;
+    animation:sp .7s linear infinite;display:inline-block}
+  @keyframes sp{to{transform:rotate(360deg)}}
   .cta{width:100%;margin-top:16px;padding:14px;border:0;border-radius:12px;background:var(--brass);color:#1a1305;
     font-family:var(--serif);font-size:16px;font-weight:600;letter-spacing:3px;cursor:pointer}
   .cta:disabled{opacity:.5}
@@ -140,16 +161,15 @@
 
 <script>
 /* ── DeepSeek（OpenAI 兼容） · key 仅供本地 demo，勿公开/上线 ── */
-const DS_ENDPOINT="https://api.deepseek.com/chat/completions", DS_MODEL="deepseek-v4-pro",
-      DS_KEY="sk-9307fc5e0fdd4150946674e1ab5f2a9a";
+/* DeepSeek 经同源代理 /llm 调用——key 在服务端（Cloudflare 环境变量），前端不暴露 */
 async function askLLM(system,user,maxTok=1500,temp=0.3){
-  const res=await fetch(DS_ENDPOINT,{method:"POST",
-    headers:{"Content-Type":"application/json","Authorization":"Bearer "+DS_KEY},
-    body:JSON.stringify({model:DS_MODEL,max_tokens:maxTok,temperature:temp,
-      messages:[{role:"system",content:system},{role:"user",content:user}]})});
-  if(!res.ok) throw new Error("HTTP "+res.status);
+  const res=await fetch("/llm",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({system,user,max_tokens:maxTok,temperature:temp})});
+  if(!res.ok) throw new Error("LLM HTTP "+res.status);
   const data=await res.json();
-  return (data.choices?.[0]?.message?.content||"").trim();
+  if(data.error) throw new Error(data.error);
+  return (data.choices?.[0]?.message?.content||data.text||"").trim();
 }
 function extractJSON(raw){
   let s=raw.replace(/```json|```/g,"").trim();
@@ -176,14 +196,158 @@ let S=null;  // 速写数据
 /* ── 入口：倒一段 ── */
 function screenIntake(){
   main.innerHTML=`
-    <p class="lead">把这桩决策<b>大致说一段</b>——要决定什么、背景、你现在的想法，都行。<br>也可以直接把现成的邮件 / 会议纪要 / 聊天记录粘进来。</p>
+    <p class="lead">把这桩决策<b>大致说一段</b>——要决定什么、背景、你现在的想法，都行。<br>可以点下面的麦克风<b>直接口述</b>，也可以把现成的邮件 / 会议纪要 / 聊天记录粘进来。</p>
     <textarea id="blob" placeholder="例：我们在纠结要不要加大应用市场的投放预算。现在每月投 200 万，ROI 在掉，转化也不太好。老板想冲利润，年底要从 500 万做到 1000 万……"></textarea>
+    <div class="voicebar">
+      <button class="mic" id="mic"><span class="dot"></span><span id="micLab">语音录入</span></button>
+      <button class="mic" id="up"><span style="font-size:15px">📎</span><span>图片 / 文件</span></button>
+    </div>
+    <span class="vhint" id="vhint">普通话直接说，或上传截图、PDF、Word、Excel——识别的字都会汇进上面，可再改</span>
+    <input type="file" id="file" hidden multiple
+      accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.md,.csv,.json,.log">
+    <div class="srcs" id="srcs"></div>
     <div class="hint">AI 会先替你把六个决策要素各猜一版草稿，你只改错的那几处——不用从零打字。</div>
     <button class="cta" id="go">生成决策速写 →</button>`;
   $("#go").onclick=generate;
+  $("#mic").onclick=toggleMic;
+  $("#up").onclick=()=>$("#file").click();
+  $("#file").onchange=onFiles;
+}
+
+/* ── 中文语音录入（Web Speech API；不支持/无权限时优雅降级） ── */
+let recog=null, recording=false, voiceBase="", voiceFinals="";
+function setMicUI(on){
+  const m=$("#mic"), lab=$("#micLab"); if(!m) return;
+  m.classList.toggle("rec",on); if(lab) lab.textContent = on?"录音中 · 点此停止":"语音录入";
+}
+function vhint(msg, warn){ const h=$("#vhint"); if(h){ h.textContent=msg; h.classList.toggle("warn",!!warn); } }
+function toggleMic(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ vhint("当前环境不支持网页语音。请点手机键盘上的 🎤 口述，或直接打字。", true); return; }
+  if(recording){ stopMic(); return; }
+  const blob=$("#blob");
+  recog = new SR();
+  recog.lang="zh-CN"; recog.continuous=true; recog.interimResults=true;
+  voiceBase = blob.value ? blob.value.replace(/\s+$/,"")+"\n" : "";   // 接着已有内容往下写
+  voiceFinals = "";
+  recog.onresult = e=>{
+    let interim="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const r=e.results[i];
+      if(r.isFinal) voiceFinals += r[0].transcript; else interim += r[0].transcript;
+    }
+    blob.value = voiceBase + voiceFinals + interim;
+    blob.scrollTop = blob.scrollHeight;
+  };
+  recog.onerror = e=>{
+    if(e.error==="not-allowed"||e.error==="service-not-allowed")
+      vhint("麦克风权限被拒。请在浏览器允许麦克风，或改用键盘 🎤 / 打字。", true);
+    else if(e.error==="network")
+      vhint("语音服务连不上（多为网络或区域限制）。改用键盘 🎤 或直接打字即可。", true);
+    else if(e.error!=="no-speech") vhint("语音识别出错了，换键盘 🎤 或打字吧。", true);
+    stopMic();
+  };
+  recog.onend = ()=>{ if(recording){ try{ recog.start(); }catch(_){}} };  // 自然停顿后自动续录
+  try{ recog.start(); recording=true; setMicUI(true); vhint("正在听…说完点一下停止"); }
+  catch(_){ vhint("没能启动语音识别，换键盘 🎤 或打字。", true); }
+}
+function stopMic(){
+  recording=false; setMicUI(false);
+  if(recog){ try{ recog.stop(); }catch(_){} recog=null; }
+}
+
+/* ── 上传：图片/文件 → 本地抽成文字 → 汇入文本框 ── */
+const _libs={};
+function loadScript(url){
+  if(_libs[url]) return _libs[url];
+  return _libs[url]=new Promise((res,rej)=>{
+    const s=document.createElement("script"); s.src=url; s.onload=res;
+    s.onerror=()=>rej(new Error("库加载失败（网络/CDN）")); document.head.appendChild(s);
+  });
+}
+const CDN={
+  pdf:"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
+  pdfw:"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
+  mammoth:"https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js",
+  xlsx:"https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+};
+
+/* ── OCR：经后端代理调用飞桨（解决浏览器直连的 CORS） ──
+   代理把"提交→轮询→取结果"三步全在服务端做完、token 也只放服务端。
+   PROXY_OCR 留同源相对路径即可（用配套的 paddle-proxy.py 同源托管本页）；
+   若代理单独部署，填完整地址，如 http://localhost:8000/ocr */
+const PROXY_OCR = "/ocr";
+
+async function paddleOCR(file, chip){
+  if(chip) setSrc(chip,"load","上传识别中（经代理，可能要十几秒）…");
+  const fd=new FormData(); fd.append("file", file);
+  let r;
+  try{ r=await fetch(PROXY_OCR,{method:"POST",body:fd}); }
+  catch(e){ throw new Error("连不上 OCR 代理——先把 paddle-proxy.py 跑起来，并从它托管的地址打开本页"); }
+  if(!r.ok){ const t=await r.text().catch(()=>""); throw new Error("OCR HTTP "+r.status+(t?(" · "+t.slice(0,100)):"")); }
+  const j=await r.json();
+  if(j.error) throw new Error(j.error);
+  return j.text||"";
+}
+
+async function extractFile(file, chip){
+  const n=file.name.toLowerCase(), buf=()=>file.arrayBuffer();
+  if(/\.(txt|md|csv|json|log)$/.test(n) || file.type.startsWith("text/")) return await file.text();
+  if(n.endsWith(".pdf")){
+    await loadScript(CDN.pdf); pdfjsLib.GlobalWorkerOptions.workerSrc=CDN.pdfw;
+    const pdf=await pdfjsLib.getDocument({data:await buf()}).promise; let t="";
+    for(let p=1;p<=pdf.numPages;p++){ const pg=await pdf.getPage(p); const c=await pg.getTextContent();
+      t+=c.items.map(i=>i.str).join(" ")+"\n"; }
+    return t;
+  }
+  if(n.endsWith(".docx")){
+    await loadScript(CDN.mammoth);
+    return (await mammoth.extractRawText({arrayBuffer:await buf()})).value;
+  }
+  if(/\.(xlsx|xls)$/.test(n)){
+    await loadScript(CDN.xlsx);
+    const wb=XLSX.read(await buf(),{type:"array"});
+    return wb.SheetNames.map(s=>`# ${s}\n`+XLSX.utils.sheet_to_csv(wb.Sheets[s])).join("\n\n");
+  }
+  if(file.type.startsWith("image/")){
+    return await paddleOCR(file, chip);
+  }
+  throw new Error("暂不支持这个类型");
+}
+
+async function onFiles(e){
+  const files=[...e.target.files]; e.target.value="";
+  for(const f of files){
+    const chip=addSrc(f.name);
+    try{
+      const text=await extractFile(f, chip);
+      if(!text || !text.trim()) throw new Error("没读到文字（可能是扫描件或空白）");
+      appendBlob(f.name, text);
+      setSrc(chip,"ok",`已读取 · ${text.trim().length} 字`);
+    }catch(err){ setSrc(chip,"err", err.message||"读取失败"); }
+  }
+}
+function addSrc(name){
+  const el=document.createElement("div"); el.className="src";
+  el.innerHTML=`<span class="ico spin"></span><span class="nm">${esc(name)}</span><span class="st">读取中…</span>`;
+  $("#srcs").appendChild(el); return el;
+}
+function setSrc(el,kind,msg){
+  const ico = kind==="ok"?`<span class="ico" style="color:var(--c-P2)">✓</span>`
+           : kind==="err"?`<span class="ico" style="color:#c2654a">✕</span>`
+           : `<span class="ico spin"></span>`;
+  el.className="src "+(kind==="load"?"":kind);
+  el.querySelector(".ico").outerHTML=ico;
+  el.querySelector(".st").textContent=msg;
+}
+function appendBlob(name,text){
+  const blob=$("#blob"), tag=`【来自：${name}】\n${text.trim()}`;
+  blob.value = blob.value.trim() ? blob.value.trimEnd()+"\n\n"+tag : tag;
+  blob.scrollTop=blob.scrollHeight;
 }
 
 async function generate(){
+  stopMic();
   const blob=$("#blob").value.trim();
   if(!blob){ $("#blob").focus(); return; }
   main.innerHTML=`<div class="loading"><div class="dots"><i></i><i></i><i></i></div><p>正在把你的话拆成六个决策要素…</p></div>`;
